@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login — Order Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3347;
+    --blue: #4f7ef8;
+    --blue-dark: #3a63d6;
+    --blue-glow: rgba(79,126,248,0.25);
+    --text: #e8eaf0;
+    --muted: #8891aa;
+    --error: #f87171;
+    --error-bg: rgba(248,113,113,0.12);
+    --green: #34d399;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Animated background blobs */
+  .bg-blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    opacity: 0.35;
+  }
+  .bg-blob-1 {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, #3a63d6, transparent 70%);
+    top: -150px; left: -150px;
+    animation: float1 12s ease-in-out infinite;
+  }
+  .bg-blob-2 {
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, #7c3aed, transparent 70%);
+    bottom: -100px; right: -100px;
+    animation: float2 10s ease-in-out infinite;
+  }
+  @keyframes float1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,30px)} }
+  @keyframes float2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,-40px)} }
+
+  .login-wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+  }
+
+  .logo-area {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .logo-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, var(--blue), #7c3aed);
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    box-shadow: 0 0 40px var(--blue-glow);
+    font-size: 28px;
+  }
+  .logo-area h1 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  .logo-area p {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .field input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 13px 16px;
+    font: 15px 'Inter', sans-serif;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field input:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px var(--blue-glow);
+  }
+  .field input::placeholder { color: #4a5168; }
+
+  .btn-login {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--blue), #6366f1);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font: 600 15px 'Inter', sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    box-shadow: 0 4px 20px rgba(79,126,248,0.4);
+    margin-top: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-login:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(79,126,248,0.55); }
+  .btn-login:active { transform: translateY(0); }
+  .btn-login:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .btn-login .spinner {
+    display: none;
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto;
+  }
+  .btn-login.loading .btn-text { display: none; }
+  .btn-login.loading .spinner { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    display: none;
+    background: var(--error-bg);
+    border: 1px solid rgba(248,113,113,0.3);
+    color: var(--error);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-top: 16px;
+    text-align: center;
+  }
+  .error-msg.visible { display: block; animation: shake 0.3s ease; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)}
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 28px 0 20px;
+  }
+
+  .app-links {
+    display: flex;
+    gap: 10px;
+  }
+  .app-link {
+    flex: 1;
+    display: block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: default;
+  }
+  .app-link.active {
+    opacity: 1;
+    pointer-events: auto;
+    cursor: pointer;
+    color: var(--blue);
+    border-color: rgba(79,126,248,0.4);
+  }
+  .app-link.active:hover { background: rgba(79,126,248,0.08); }
+  .app-link .app-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+  .success-banner {
+    display: none;
+    background: rgba(52,211,153,0.1);
+    border: 1px solid rgba(52,211,153,0.3);
+    color: var(--green);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-top: 16px;
+    text-align: center;
+  }
+  .success-banner.visible { display: block; }
+
+  @media (max-width: 460px) { .card { padding: 24px 20px; } }
+</style>
+</head>
+<body>
+<div class="bg-blob bg-blob-1"></div>
+<div class="bg-blob bg-blob-2"></div>
+
+<div class="login-wrapper">
+  <div class="logo-area">
+    <div class="logo-icon">📋</div>
+    <h1>Order Management</h1>
+    <p>Sign in to access your orders</p>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" placeholder="Enter your username" autocomplete="username" autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password">
+    </div>
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">
+      <span class="btn-text">Sign in</span>
+      <span class="spinner"></span>
+    </button>
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="success-banner" id="successBanner">✅ Logged in! Redirecting…</div>
+
+    <hr class="divider">
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;text-align:center">Go to app:</p>
+    <div class="app-links">
+      <a class="app-link" id="linkMange" href="mange_orders.html">
+        <span class="app-icon">🏭</span>
+        Mange Orders
+      </a>
+      <a class="app-link" id="linkZipper" href="zipper_tracker.html">
+        <span class="app-icon">🪡</span>
+        Zipper Tracker
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  async function checkSession() {
+    try {
+      const r = await fetch('/api/me');
+      const data = await r.json();
+      if (data.loggedIn) {
+        $('linkMange').classList.add('active');
+        $('linkZipper').classList.add('active');
+        $('successBanner').textContent = `✅ Signed in as ${data.username}`;
+        $('successBanner').classList.add('visible');
+        $('loginBtn').style.display = 'none';
+      }
+    } catch(e) {}
+  }
+
+  async function doLogin() {
+    const username = $('username').value.trim();
+    const password = $('password').value;
+    if (!username || !password) {
+      showError('Please enter username and password.');
+      return;
+    }
+    const btn = $('loginBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+    $('errorMsg').classList.remove('visible');
+
+    try {
+      const r = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await r.json();
+      if (r.ok && data.ok) {
+        $('successBanner').textContent = `✅ Welcome, ${data.username}! Redirecting…`;
+        $('successBanner').classList.add('visible');
+        $('linkMange').classList.add('active');
+        $('linkZipper').classList.add('active');
+        btn.style.display = 'none';
+        setTimeout(() => { window.location.href = 'mange_orders.html'; }, 1200);
+      } else {
+        showError(data.error || 'Login failed. Please try again.');
+      }
+    } catch(e) {
+      showError('Server not reachable. Make sure the server is running.');
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  }
+
+  function showError(msg) {
+    const el = $('errorMsg');
+    el.textContent = msg;
+    el.classList.remove('visible');
+    void el.offsetWidth; // reflow to re-trigger animation
+    el.classList.add('visible');
+  }
+
+  // Allow Enter key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  checkSession();
+</script>
+</body>
+</html>

@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mange Orders</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--ink:#172033;--muted:#65738a;--line:#dce3ec;--blue:#2457c5;--soft:#eaf0ff;--red:#b42318;--green:#167447;--amber:#9a6700}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,Arial,sans-serif}
+header{background:#14213d;color:#fff;padding:22px max(16px,calc((100% - 1100px)/2))}
+header .header-inner{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{margin:0}header p{margin:4px 0 0;color:#dbe5ff}
+.header-user{display:flex;align-items:center;gap:10px;font-size:13px;color:#dbe5ff}
+.header-user button{background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2);padding:6px 12px;font-size:12px;border-radius:8px;cursor:pointer}
+.header-user button:hover{background:rgba(255,255,255,0.2)}
+nav{display:flex;gap:8px;flex-wrap:wrap;background:#fff;padding:10px max(16px,calc((100% - 1100px)/2));border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+main{max-width:1100px;margin:22px auto;padding:0 16px 50px}
+.page{display:none}.page.active{display:block}
+nav button{background:transparent;color:var(--muted)}nav button.active{background:var(--soft);color:#21449a}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+h2{font-size:19px;margin:0 0 14px}h3{margin:0 0 4px}
+.note,.muted{font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:13px;color:var(--muted);font-weight:650}
+input,select,textarea,button{font:inherit}
+input,select,textarea{width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#fff;color:var(--ink)}
+textarea{resize:vertical;min-height:40px}
+button{border:0;border-radius:9px;padding:10px 14px;background:var(--blue);color:#fff;font-weight:650;cursor:pointer}
+button.secondary{background:var(--soft);color:#21449a}button.danger{background:#fff0ef;color:var(--red)}button.small{padding:7px 10px;font-size:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--muted);text-transform:uppercase;background:#f8fafc}
+td input,td select,td textarea{padding:8px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.stat{background:#f8fafc;border:1px solid var(--line);padding:12px;border-radius:10px}
+.stat span{display:block;color:var(--muted);font-size:12px}.stat strong{font-size:21px}
+.ordercard,.stagecard{border:1px solid var(--line);border-radius:10px;padding:14px;margin:10px 0;background:white}
+.ordercard{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.tag{font-size:12px;padding:4px 8px;background:#edf7f0;color:var(--green);border-radius:30px;display:inline-block}
+.tag.locked{background:#f1f3f6;color:#65738a}.tag.active{background:#eaf0ff;color:#21449a}
+.empty{padding:24px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
+.stagebar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}
+.stagepill{padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
+.stagepill strong{display:block;font-size:13px}.stagepill small{color:var(--muted)}
+.stagepill.current{border-color:var(--blue);background:var(--soft)}.stagepill.done{border-color:#b9dfc9;background:#edf7f0}
+.checkrow{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.checkrow:last-child{border-bottom:0}.checkrow input{width:20px;margin-top:3px}.checkrow .details{flex:1}
+.checkrow .details strong{display:block}
+.stephead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.timer{font-size:18px;font-weight:750;color:#21449a}
+.warning{padding:10px 12px;background:#fff7e6;color:#7a5200;border-radius:8px;font-size:13px}
+.success{padding:10px 12px;background:#edf7f0;color:var(--green);border-radius:8px;font-size:13px}
+.saving-indicator{position:fixed;bottom:18px;right:18px;background:#14213d;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:100;opacity:0;transition:opacity 0.3s;pointer-events:none}
+.saving-indicator.show{opacity:1}
+@media(max-width:720px){.grid{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.stagebar{grid-template-columns:1fr 1fr}}
+@media(max-width:460px){.grid,.stagebar{grid-template-columns:1fr}}
+@media print{nav,.no-print,button{display:none!important}.page{display:none!important}#detailPage{display:block!important}}
+</style>
+</head>
+<body>
+<div class="saving-indicator" id="savingIndicator">💾 Saving…</div>
+<header>
+  <div class="header-inner">
+    <div>
+      <h1>Mange Orders</h1>
+      <p>Order details · step-by-step production · automatic stage timing</p>
+    </div>
+    <div class="header-user">
+      <span id="headerUsername"></span>
+      <button onclick="doLogout()">Sign out</button>
+      <button onclick="window.location.href='zipper_tracker.html'" style="background:rgba(255,255,255,0.08)">🪡 Zipper App</button>
+    </div>
+  </div>
+</header>
+<nav>
+  <button id="navOrders" class="active">1. Orders list</button>
+  <button id="navAdd">2. Add order</button>
+  <button id="navDetail" style="display:none">3. Order progress</button>
+  <button id="navTrash">4. Deleted orders</button>
+  <button id="navStageFilter">5. Filter by step</button>
+</nav>
+<main>
+  <section id="ordersPage" class="page active">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><h2 style="margin-bottom:4px">Orders</h2><div class="note">Open an order to check production progress and stage durations.</div></div>
+        <button id="createOrder">+ Add new order</button>
+      </div>
+      <div id="ordersList" style="margin-top:14px"></div>
+      <div class="actions no-print">
+        <button id="exportBackup" class="secondary">Export backup (JSON)</button>
+        <label class="secondary" style="display:inline-flex;align-items:center;padding:10px 14px;border-radius:9px;cursor:pointer;color:#21449a;background:#eaf0ff;font-weight:650">
+          Import backup<input id="importBackup" type="file" accept="application/json,.json" style="display:none">
+        </label>
+      </div>
+      <p class="note">Orders are saved in the database. Data is shared across all browsers and devices.</p>
+    </div>
+  </section>
+
+  <section id="addPage" class="page">
+    <div class="card">
+      <h2 id="formTitle">Add new order</h2>
+      <div class="grid">
+        <div class="field"><label>Order number</label><input id="orderNo" placeholder="Enter order number"></div>
+        <div class="field"><label>Customer name</label><input id="customer" placeholder="Enter customer name"></div>
+        <div class="field"><label>Order notes (optional)</label><input id="orderNotes" placeholder="General notes about this order"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Order variations</h2>
+      <p class="note">Each row is one variation in the order.</p>
+      <div class="tablewrap">
+        <table><thead><tr><th>Variation</th><th>Quantity</th><th>Size</th><th>Color</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="entryRows"></tbody></table>
+      </div>
+      <div class="actions">
+        <button id="addRow" class="secondary">+ Add variation row</button>
+        <button id="addVariation" class="secondary">+ Add new variation</button>
+      </div>
+      <div class="actions">
+        <button id="saveOrder">Save order</button>
+        <button id="cancelEdit" class="secondary">Cancel</button>
+      </div>
+      <div id="formMessage" class="note" role="status"></div>
+    </div>
+  </section>
+
+  <section id="detailPage" class="page">
+    <div class="card">
+      <div class="stephead">
+        <div><h2 id="detailTitle">Order progress</h2><div id="detailMeta" class="muted"></div></div>
+        <div class="actions no-print" style="margin-top:0">
+          <button id="editOrder" class="secondary">Edit order</button>
+          <button id="exportOrder" class="secondary">Export CSV</button>
+          <button id="printOrder" class="secondary">Print</button>
+        </div>
+      </div>
+      <div class="stats" id="detailStats"></div>
+      <div id="orderNotesDisplay" class="muted"></div>
+      <div class="stagebar" id="stagebar"></div>
+    </div>
+    <div id="stageContent"></div>
+    <div class="actions no-print"><button id="backOrders" class="secondary">← Back to orders</button></div>
+  </section>
+
+  <section id="stageFilterPage" class="page">
+    <div class="card">
+      <div class="stephead">
+        <div><h2>Filter orders by production step</h2>
+        <div class="note">Choose a stage to see orders that currently have variations being worked on at that step.</div></div>
+      </div>
+      <div class="actions" id="stageFilterButtons" style="margin-top:8px"></div>
+      <div id="stageFilterSummary" class="muted" style="margin:12px 0"></div>
+      <div id="stageFilterResults"></div>
+    </div>
+  </section>
+
+  <section id="trashPage" class="page">
+    <div class="card">
+      <div class="stephead">
+        <div><h2>Deleted orders</h2><div class="note">Orders moved here are kept safely until you restore or permanently delete them.</div></div>
+        <span class="tag locked" id="trashCount">0 orders</span>
+      </div>
+      <div id="trashList" style="margin-top:14px"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ─── Constants & state ─────────────────────────────────────────────────────
+const STAGES = ["Preparation","Coloring","Product Installation","Hand to Customer"];
+let saved = {}, archived = {}, variations = [], rows = [], editKey = null, activeKey = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = x => Math.max(0, Number(x) || 0);
+const now = () => new Date().toISOString();
+
+// ─── Auth helpers ──────────────────────────────────────────────────────────
+async function checkAuth() {
+  try {
+    const r = await fetch('/api/me');
+    const d = await r.json();
+    if (!d.loggedIn) { window.location.href = 'login.html'; return false; }
+    $('headerUsername').textContent = '👤 ' + d.username;
+    return true;
+  } catch(e) {
+    window.location.href = 'login.html';
+    return false;
+  }
+}
+
+async function doLogout() {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = 'login.html';
+}
+
+// ─── Saving indicator ──────────────────────────────────────────────────────
+let saveTimer = null;
+function showSaving(msg = '💾 Saving…') {
+  const el = $('savingIndicator');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ─── API helpers ───────────────────────────────────────────────────────────
+async function apiGet(url) {
+  const r = await fetch(url);
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+
+async function apiPost(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+
+async function apiDelete(url) {
+  const r = await fetch(url, { method: 'DELETE' });
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+
+async function apiPut(url, body) {
+  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+
+// ─── Load all data from server ─────────────────────────────────────────────
+async function loadData() {
+  const data = await apiGet('/api/mange/orders');
+  saved = data.saved || {};
+  archived = data.archived || {};
+  variations = data.variations || [];
+  Object.values(saved).forEach(o => { normalizeOrder(o); syncOrderCompletion(o, o.updatedAt || o.createdAt || now()); });
+  Object.values(archived).forEach(normalizeOrder);
+}
+
+// ─── Persist to server ──────────────────────────────────────────────────────
+async function persistOrder(id) {
+  showSaving();
+  try { await apiPost('/api/mange/orders', { id, order: saved[id] }); }
+  catch(e) { console.error('Save error', e); showSaving('⚠️ Save failed'); }
+}
+
+async function persistVariations() {
+  try { await apiPut('/api/mange/variations', { variations }); }
+  catch(e) { console.error('Variation save error', e); }
+}
+
+// ─── Navigation ────────────────────────────────────────────────────────────
+function go(id) {
+  ['ordersPage','addPage','detailPage','trashPage','stageFilterPage'].forEach(x => $(x).classList.toggle('active', x === id));
+  $('navOrders').classList.toggle('active', id === 'ordersPage');
+  $('navAdd').classList.toggle('active', id === 'addPage');
+  $('navTrash').classList.toggle('active', id === 'trashPage');
+  $('navStageFilter').classList.toggle('active', id === 'stageFilterPage');
+  $('navDetail').style.display = id === 'detailPage' ? 'inline-block' : 'none';
+  $('navDetail').classList.toggle('active', id === 'detailPage');
+  scrollTo(0, 0);
+}
+
+// ─── Variations ────────────────────────────────────────────────────────────
+function allVariations() { return [...new Set([...variations, ...rows.map(r => r.variation).filter(Boolean)])]; }
+
+// ─── Row rendering ──────────────────────────────────────────────────────────
+function rowHtml(r) {
+  return `<tr><td><select data-row="${r.id}" data-key="variation">${allVariations().map(v => `<option value="${esc(v)}" ${v === r.variation ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></td>
+  <td><input data-row="${r.id}" data-key="quantity" type="number" min="0" step="1" placeholder="Quantity" value="${esc(r.quantity)}"></td>
+  <td><input data-row="${r.id}" data-key="size" placeholder="Size" value="${esc(r.size)}"></td>
+  <td><input data-row="${r.id}" data-key="color" placeholder="Color" value="${esc(r.color)}"></td>
+  <td><input data-row="${r.id}" data-key="notes" placeholder="Notes" value="${esc(r.notes)}"></td>
+  <td><button class="danger small" data-remove="${r.id}">Remove</button></td></tr>`;
+}
+
+function renderRows() {
+  $('entryRows').innerHTML = rows.map(rowHtml).join('') || '<tr><td colspan="6" class="empty">No variations added yet. Click "Add variation row" to begin.</td></tr>';
+}
+
+function addRow(d = {}) {
+  rows.push({ id: (crypto.randomUUID?.() || String(Date.now() + Math.random())), variation: d.variation || allVariations()[0] || '', quantity: d.quantity ?? '', size: d.size ?? '', color: d.color ?? '', notes: d.notes ?? '' });
+  renderRows();
+}
+
+// ─── Order form ────────────────────────────────────────────────────────────
+function startNew() {
+  editKey = null; rows = [];
+  $('orderNo').value = ''; $('customer').value = ''; $('orderNotes').value = '';
+  $('formTitle').textContent = 'Add new order'; $('formMessage').textContent = '';
+  addRow(); go('addPage');
+}
+
+function startEdit(id) {
+  const o = saved[id]; if (!o) return;
+  editKey = id; rows = (o.rows || []).map(r => ({...r}));
+  $('orderNo').value = o.orderNo || ''; $('customer').value = o.customer || ''; $('orderNotes').value = o.notes || '';
+  $('formTitle').textContent = 'Edit order ' + (o.orderNo || '');
+  $('formMessage').textContent = 'Existing variation progress and timers will be preserved.';
+  renderRows(); go('addPage');
+}
+
+// ─── Order logic ────────────────────────────────────────────────────────────
+function duration(ms) {
+  let mins = Math.max(0, Math.floor(ms / 60000)), days = Math.floor(mins / 1440), hours = Math.floor((mins % 1440) / 60), minutes = mins % 60;
+  return `${days}d ${hours}h ${minutes}m`;
+}
+function stageDuration(w) { if (!w?.startedAt) return '—'; return duration(new Date(w.finishedAt || now()).getTime() - new Date(w.startedAt).getTime()); }
+function initWorkflow(start = now()) { return STAGES.map((name, i) => ({ name, startedAt: i === 0 ? start : null, finishedAt: null })); }
+function normalizeOrder(o) {
+  (o.rows || []).forEach(r => {
+    if (Array.isArray(r.workflow)) return;
+    r.workflow = initWorkflow(o.createdAt || now());
+  });
+}
+function currentStageForRow(r) { return (r.workflow || []).findIndex(w => !w.finishedAt); }
+function orderProgress(o) {
+  let total = (o.rows || []).length * 4, done = (o.rows || []).reduce((n, r) => n + (r.workflow || []).filter(w => w.finishedAt).length, 0);
+  return { total, done };
+}
+function orderComplete(o) { const p = orderProgress(o); return p.total > 0 && p.done === p.total; }
+function orderDuration(o) { if (!o?.createdAt) return '—'; return duration(new Date(o.completedAt || now()).getTime() - new Date(o.createdAt).getTime()); }
+function syncOrderCompletion(o, stamp = now()) { if (orderComplete(o)) { if (!o.completedAt) o.completedAt = stamp; } else { o.completedAt = null; } }
+
+async function saveOrder() {
+  let orderNo = $('orderNo').value.trim(), customer = $('customer').value.trim();
+  if (!orderNo) { $('formMessage').textContent = 'Please enter an order number.'; return; }
+  if (!rows.length || !rows.some(r => r.variation.trim() && (String(r.quantity).trim() !== '' || String(r.size).trim() || String(r.color).trim() || String(r.notes).trim()))) {
+    $('formMessage').textContent = 'Add at least one variation with order details.'; return;
+  }
+  if (!editKey && saved[orderNo] && !confirm('That order number exists. Replace it?')) return;
+
+  let old = editKey ? saved[editKey] : null, oldRows = new Map((old?.rows || []).map(r => [r.id, r]));
+  let cleanRows = rows.map(r => {
+    let prior = oldRows.get(r.id);
+    return { ...r, variation: r.variation.trim(), quantity: r.quantity === '' ? '' : num(r.quantity), size: String(r.size || '').trim(), color: String(r.color || '').trim(), notes: String(r.notes || '').trim(), workflow: prior?.workflow || r.workflow || initWorkflow() };
+  });
+  cleanRows.forEach(r => { if (r.variation && !variations.includes(r.variation)) variations.push(r.variation); });
+  await persistVariations();
+
+  let id = editKey || orderNo;
+  let o = old ? { ...old, orderNo, customer, notes: $('orderNotes').value.trim(), rows: cleanRows, updatedAt: now() }
+              : { orderNo, customer, notes: $('orderNotes').value.trim(), rows: cleanRows, createdAt: now(), completedAt: null, updatedAt: now() };
+  syncOrderCompletion(o, o.updatedAt);
+  if (editKey && editKey !== orderNo) { delete saved[editKey]; await apiDelete('/api/mange/orders/' + encodeURIComponent(editKey)); id = orderNo; }
+  saved[id] = o; activeKey = id;
+  await persistOrder(id);
+  renderOrders(); renderDetail(); go('detailPage');
+}
+
+// ─── Render orders list ─────────────────────────────────────────────────────
+function renderOrders() {
+  let list = Object.entries(saved).sort((a, b) => (b[1].updatedAt || '').localeCompare(a[1].updatedAt || ''));
+  $('ordersList').innerHTML = list.length ? list.map(([id, o]) => {
+    normalizeOrder(o);
+    let { total, done } = orderProgress(o), complete = total > 0 && done === total;
+    return `<div class="ordercard"><div><h3>${esc(o.orderNo || '(No order number)')}</h3><div>${esc(o.customer || 'No customer name')}</div>
+    <div class="muted">${(o.rows || []).length} variations · ${done}/${total} variation steps completed</div>
+    <div class="muted">Total time: ${orderDuration(o)}</div>
+    <span class="tag ${complete ? '' : 'active'}">${complete ? 'Completed' : 'In production'}</span></div>
+    <div class="actions" style="margin:0">
+      <button data-open="${esc(id)}">Open progress</button>
+      <button class="secondary" data-edit="${esc(id)}">Edit</button>
+      <button class="danger" data-delete="${esc(id)}">Move to deleted</button>
+    </div></div>`;
+  }).join('') : '<div class="empty">No orders yet. Click "Add new order" to create one.</div>';
+}
+
+// ─── Stage filter ───────────────────────────────────────────────────────────
+let selectedStageFilter = 0;
+function renderStageFilter() {
+  $('stageFilterButtons').innerHTML = STAGES.map((name, i) => `<button class="${selectedStageFilter === i ? '' : 'secondary'}" data-filter-stage="${i}">${i + 1}. ${esc(name)}</button>`).join('') +
+    `<button class="${selectedStageFilter === 4 ? '' : 'secondary'}" data-filter-stage="4">Completed orders</button>`;
+  const matches = [];
+  Object.entries(saved).forEach(([id, o]) => {
+    normalizeOrder(o);
+    const rowsAtStage = (o.rows || []).filter(r => selectedStageFilter === 4 ? currentStageForRow(r) < 0 : currentStageForRow(r) === selectedStageFilter);
+    if (rowsAtStage.length) matches.push({ id, o, rows: rowsAtStage });
+  });
+  const variationCount = matches.reduce((n, x) => n + x.rows.length, 0);
+  $('stageFilterSummary').textContent = selectedStageFilter === 4 ? `${matches.length} completed orders` : `${matches.length} orders · ${variationCount} variation(s) currently in ${STAGES[selectedStageFilter]}`;
+  $('stageFilterResults').innerHTML = matches.length ? matches.sort((a, b) => (b.o.updatedAt || '').localeCompare(a.o.updatedAt || '')).map(({ id, o, rows }) =>
+    `<div class="ordercard"><div style="flex:1;min-width:220px"><h3>${esc(o.orderNo || '(No order number)')}</h3><div>${esc(o.customer || 'No customer name')}</div>
+    <div class="muted">${rows.length} variation(s) at ${selectedStageFilter === 4 ? 'completed' : esc(STAGES[selectedStageFilter])} · ${(o.rows || []).length} total variations · Total order time: ${orderDuration(o)}</div>
+    <div class="muted" style="margin-top:7px">${rows.map(r => `<span class="tag ${selectedStageFilter === 4 ? '' : 'active'}">${esc(r.variation || 'Unnamed variation')} · Qty ${esc(r.quantity || '—')}</span>`).join(' ')}</div>
+    </div><button data-open="${esc(id)}">Open order</button></div>`).join('') : '<div class="empty">No orders currently match this step.</div>';
+}
+
+// ─── Trash ─────────────────────────────────────────────────────────────────
+function renderTrash() {
+  const list = Object.entries(archived).sort((a, b) => (b[1].deletedAt || '').localeCompare(a[1].deletedAt || ''));
+  $('trashCount').textContent = list.length + ' orders';
+  $('trashList').innerHTML = list.length ? list.map(([id, o]) =>
+    `<div class="ordercard"><div><h3>${esc(o.orderNo || '(No order number)')}</h3><div>${esc(o.customer || 'No customer name')}</div>
+    <div class="muted">${(o.rows || []).length} variations · Deleted ${o.deletedAt ? new Date(o.deletedAt).toLocaleString() : '—'}</div></div>
+    <div class="actions" style="margin:0">
+      <button class="secondary" data-restore="${esc(id)}">Restore order</button>
+      <button class="danger" data-purge="${esc(id)}">Delete permanently</button>
+    </div></div>`).join('') : '<div class="empty">No deleted orders. Orders you delete will appear here.</div>';
+}
+
+async function restoreOrder(id) {
+  const o = archived[id]; if (!o) return;
+  delete o.deletedAt; delete archived[id];
+  let target = id;
+  if (saved[target]) { target = (o.orderNo || id) + '-restored-' + Date.now(); o.orderNo = o.orderNo || target; }
+  saved[target] = o;
+  await apiPost('/api/mange/archived/' + encodeURIComponent(id) + '/restore', {});
+  renderTrash(); renderOrders();
+}
+
+async function permanentlyDeleteOrder(id) {
+  if (!archived[id] || !confirm('Permanently delete this order? This cannot be undone.')) return;
+  delete archived[id];
+  await apiDelete('/api/mange/archived/' + encodeURIComponent(id));
+  renderTrash();
+}
+
+// ─── Detail view ────────────────────────────────────────────────────────────
+function renderDetail() {
+  const o = saved[activeKey]; if (!o) return;
+  normalizeOrder(o);
+  $('detailTitle').textContent = 'Order ' + (o.orderNo || '');
+  $('detailMeta').textContent = `Customer: ${o.customer || '—'} · Created ${new Date(o.createdAt || Date.now()).toLocaleString()}`;
+  $('orderNotesDisplay').textContent = o.notes ? 'Order notes: ' + o.notes : '';
+  let { total, done } = orderProgress(o), complete = total > 0 && done === total, active = o.rows.reduce((n, r) => n + (currentStageForRow(r) >= 0 ? 1 : 0), 0);
+
+  $('detailStats').innerHTML = `<div class="stat"><span>Variations</span><strong>${o.rows.length}</strong></div>
+  <div class="stat"><span>Completed variation steps</span><strong>${done}/${total}</strong></div>
+  <div class="stat"><span>Variations in progress</span><strong>${active}</strong></div>
+  <div class="stat"><span>Order status</span><strong style="font-size:16px">${complete ? 'Completed' : 'In production'}</strong></div>
+  <div class="stat"><span>Total order time</span><strong data-order-timer class="timer">${orderDuration(o)}</strong>
+  <span class="note">${complete ? 'Finished ' + new Date(o.completedAt).toLocaleString() : 'Running since order creation'}</span></div>`;
+
+  $('stagebar').innerHTML = STAGES.map((name, i) => {
+    let count = o.rows.filter(r => r.workflow[i]?.finishedAt).length;
+    return `<div class="stagepill"><strong>${i + 1}. ${esc(name)}</strong><small>${count}/${o.rows.length} variations completed</small></div>`;
+  }).join('');
+
+  $('stageContent').innerHTML = o.rows.map((r, ri) => {
+    let ix = currentStageForRow(r), rowDone = ix < 0;
+    return `<div class="card"><div class="stephead"><div><h2>Variation ${ri + 1}: ${esc(r.variation || 'Unnamed variation')}</h2>
+    <div class="muted">Qty: ${esc(r.quantity || '—')} · Size: ${esc(r.size || '—')} · Color: ${esc(r.color || '—')}${r.notes ? ' · Notes: ' + esc(r.notes) : ''}</div></div>
+    <span class="tag ${rowDone ? '' : 'active'}">${rowDone ? 'Completed' : `Step ${ix + 1} of 4`}</span></div>
+    <div class="stagebar">${r.workflow.map((w, i) => {
+      let isCurrent = i === ix, finished = !!w.finishedAt, locked = !w.startedAt;
+      return `<div class="stagepill ${finished ? 'done' : isCurrent ? 'current' : ''}">
+        <strong>${i + 1}. ${esc(STAGES[i])}</strong>
+        <small ${isCurrent ? `data-live-timer data-row="${esc(r.id)}" data-step="${i}"` : ''}>${finished ? 'Done · ' + stageDuration(w) : isCurrent ? 'Running · ' + stageDuration(w) : locked ? 'Locked' : 'Ready'}</small>
+        ${isCurrent ? `<div style="margin-top:9px"><button class="small" data-complete-step="${esc(r.id)}" data-step="${i}">Complete this step</button></div>` : ''}
+      </div>`;
+    }).join('')}</div></div>`;
+  }).join('') || '<div class="empty">No variations in this order.</div>';
+}
+
+async function completeStep(rowId, step) {
+  const o = saved[activeKey]; if (!o) return;
+  normalizeOrder(o);
+  const r = o.rows.find(x => x.id === rowId); if (!r) return;
+  const w = r.workflow[step];
+  if (!w || w.finishedAt || !w.startedAt || currentStageForRow(r) !== step) return;
+  const stamp = now();
+  w.finishedAt = stamp;
+  if (step < STAGES.length - 1) r.workflow[step + 1].startedAt = stamp;
+  o.updatedAt = stamp;
+  syncOrderCompletion(o, stamp);
+  await persistOrder(activeKey);
+  renderDetail(); renderOrders();
+  if ($('stageFilterPage').classList.contains('active')) renderStageFilter();
+}
+
+// ─── Export CSV ─────────────────────────────────────────────────────────────
+function exportCsv(id) {
+  const o = saved[id]; if (!o) return;
+  normalizeOrder(o);
+  const data = [['Order','Customer','Order notes','Variation','Quantity','Size','Color','Entry notes', ...STAGES.flatMap((s, i) => [s + ' started', s + ' finished', s + ' duration'])]];
+  o.rows.forEach(r => data.push([o.orderNo, o.customer, o.notes, r.variation, r.quantity, r.size, r.color, r.notes, ...r.workflow.flatMap(w => [w.startedAt || '', w.finishedAt || '', w.startedAt ? stageDuration(w) : 'Not started'])]));
+  let blob = new Blob([data.map(row => row.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = `mange-order-${o.orderNo || 'export'}.csv`; a.click(); URL.revokeObjectURL(url);
+}
+
+// ─── Event wiring ───────────────────────────────────────────────────────────
+$('navOrders').onclick = () => { renderOrders(); go('ordersPage'); };
+$('navTrash').onclick = () => { renderTrash(); go('trashPage'); };
+$('navStageFilter').onclick = () => { renderStageFilter(); go('stageFilterPage'); };
+$('navAdd').onclick = startNew;
+$('createOrder').onclick = startNew;
+$('addRow').onclick = () => addRow();
+$('addVariation').onclick = () => {
+  let v = prompt('Enter a new variation name:');
+  if (v && v.trim()) { v = v.trim(); if (!variations.includes(v)) variations.push(v); addRow({ variation: v }); renderRows(); persistVariations(); }
+};
+$('saveOrder').onclick = saveOrder;
+$('cancelEdit').onclick = () => { renderOrders(); go('ordersPage'); };
+$('backOrders').onclick = () => { renderOrders(); go('ordersPage'); };
+$('editOrder').onclick = () => startEdit(activeKey);
+$('exportOrder').onclick = () => exportCsv(activeKey);
+$('printOrder').onclick = () => print();
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.row) { const r = rows.find(x => x.id === t.dataset.row); if (r) r[t.dataset.key] = t.value; }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.row) { const r = rows.find(x => x.id === t.dataset.row); if (r) { r[t.dataset.key] = t.value; if (t.dataset.key === 'variation' && !variations.includes(t.value)) { variations.push(t.value); persistVariations(); } } }
+});
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.remove) { rows = rows.filter(r => r.id !== b.dataset.remove); renderRows(); }
+  if (b.dataset.open) { activeKey = b.dataset.open; renderDetail(); go('detailPage'); }
+  if (b.dataset.edit) startEdit(b.dataset.edit);
+  if (b.dataset.completeStep !== undefined) completeStep(b.dataset.completeStep, Number(b.dataset.step));
+  if (b.dataset.delete && confirm('Move this order to Deleted orders? You can restore it later.')) {
+    const id = b.dataset.delete;
+    if (saved[id]) {
+      archived[id] = { ...saved[id], deletedAt: now() };
+      delete saved[id];
+      await apiDelete('/api/mange/orders/' + encodeURIComponent(id));
+      renderOrders(); renderTrash();
+      if (activeKey === id) go('ordersPage');
+    }
+  }
+  if (b.dataset.filterStage !== undefined) { selectedStageFilter = Number(b.dataset.filterStage); renderStageFilter(); }
+  if (b.dataset.restore) restoreOrder(b.dataset.restore);
+  if (b.dataset.purge) permanentlyDeleteOrder(b.dataset.purge);
+});
+
+// ─── Backup / Import ────────────────────────────────────────────────────────
+$('exportBackup').onclick = () => {
+  const blob = new Blob([JSON.stringify({ saved, archived, variations }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = 'mange-orders-backup.json'; a.click(); URL.revokeObjectURL(url);
+};
+
+$('importBackup').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!data.saved || typeof data.saved !== 'object') throw Error('Invalid backup');
+    if (!confirm('Import will replace matching orders with data from the backup. Continue?')) return;
+    const result = await apiPost('/api/mange/import', data);
+    if (result.ok) {
+      await loadData();
+      renderOrders(); renderTrash(); go('ordersPage');
+      showSaving('✅ Import complete!');
+    }
+  } catch(err) { alert('Could not import this backup. Please choose a valid Mange Orders JSON backup.'); }
+  e.target.value = '';
+};
+
+// ─── Live timers ─────────────────────────────────────────────────────────────
+setInterval(() => {
+  if (!$('detailPage').classList.contains('active')) return;
+  const o = saved[activeKey]; if (!o) return;
+  document.querySelectorAll('[data-live-timer]').forEach(el => {
+    const r = o.rows.find(x => x.id === el.dataset.row), w = r?.workflow?.[Number(el.dataset.step)];
+    if (w) el.textContent = stageDuration(w);
+  });
+  const orderTimer = document.querySelector('[data-order-timer]');
+  if (orderTimer) orderTimer.textContent = orderDuration(o);
+}, 1000);
+
+// ─── Boot ─────────────────────────────────────────────────────────────────
+(async () => {
+  const ok = await checkAuth();
+  if (!ok) return;
+  await loadData();
+  renderOrders(); renderTrash(); startNew();
+})();
+</script>
+</body>
+</html>

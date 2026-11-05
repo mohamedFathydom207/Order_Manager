@@ -1,0 +1,17 @@
+{
+  "name": "order-manager",
+  "version": "1.0.0",
+  "description": "Order Management System - Mange Orders and Zipper Tracker",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "install:server": "npm install --prefix server"
+  },
+  "keywords": [
+    "order-management",
+    "express",
+    "tracker"
+  ],
+  "author": "",
+  "license": "ISC"
+}

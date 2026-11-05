@@ -1,0 +1,23 @@
+# Dependency directories
+node_modules/
+server/node_modules/
+
+# Runtime session files
+data/sessions/
+data/sessions/*
+
+# User data files (protect credentials & database)
+data/*.json
+!data/users.json.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and OS files
+.env
+.DS_Store
+Thumbs.db

@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zipper Order Tracker</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--ink:#172033;--muted:#65738a;--line:#dce3ec;--blue:#2457c5;--soft:#eaf0ff;--red:#b42318;--green:#167447}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,Arial,sans-serif}
+header{background:#14213d;color:#fff;padding:22px max(16px,calc((100% - 1100px)/2))}
+header .header-inner{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{margin:0}header p{margin:4px 0 0;color:#dbe5ff}
+.header-user{display:flex;align-items:center;gap:10px;font-size:13px;color:#dbe5ff}
+.header-user button{background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2);padding:6px 12px;font-size:12px;border-radius:8px;cursor:pointer}
+.header-user button:hover{background:rgba(255,255,255,0.2)}
+nav{display:flex;gap:8px;flex-wrap:wrap;background:#fff;padding:10px max(16px,calc((100% - 1100px)/2));border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+main{max-width:1100px;margin:22px auto;padding:0 16px 50px}
+.page{display:none}.page.active{display:block}
+nav button{background:transparent;color:var(--muted)}nav button.active{background:var(--soft);color:#21449a}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+h2{font-size:19px;margin:0 0 13px}.note,.muted{font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:14px;color:var(--muted);font-weight:650}
+input,select,button{font:inherit}input,select{width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#fff;color:var(--ink)}
+button{border:0;border-radius:9px;padding:10px 14px;background:var(--blue);color:#fff;font-weight:650;cursor:pointer}
+button.secondary{background:var(--soft);color:#21449a}button.danger{background:#fff0ef;color:var(--red)}button.small{padding:7px 10px;font-size:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:680px}
+th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--muted);text-transform:uppercase;background:#f8fafc}td input,td select{padding:8px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.stat{background:#f8fafc;border:1px solid var(--line);padding:12px;border-radius:10px}
+.stat span{display:block;color:var(--muted);font-size:12px}.stat strong{font-size:21px}
+.ordercard,.rollcard{border:1px solid var(--line);border-radius:10px;padding:13px;margin:10px 0;background:white}
+.ordercard{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.ordercard h3{margin:0 0 3px}
+.rollhead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.rollgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+.tag{font-size:12px;padding:4px 8px;background:#edf7f0;color:var(--green);border-radius:30px;display:inline-block}
+.over-received{color:var(--red)!important;font-weight:800}
+.empty{padding:24px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
+.saving-indicator{position:fixed;bottom:18px;right:18px;background:#14213d;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:100;opacity:0;transition:opacity 0.3s;pointer-events:none}
+.saving-indicator.show{opacity:1}
+@media(max-width:720px){.grid{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.rollgrid{grid-template-columns:1fr 1fr}}
+@media(max-width:460px){.grid,.rollgrid{grid-template-columns:1fr}}
+@media print{nav,.no-print,button{display:none!important}.page{display:none!important}#detailPage{display:block!important}}
+</style>
+</head>
+<body>
+<div class="saving-indicator" id="savingIndicator">💾 Saving…</div>
+<header>
+  <div class="header-inner">
+    <div>
+      <h1>Zipper Order Tracker</h1>
+      <p>Orders · automatic roll leftovers · finishing production · workshop receiving</p>
+    </div>
+    <div class="header-user">
+      <span id="headerUsername"></span>
+      <button onclick="doLogout()">Sign out</button>
+      <button onclick="window.location.href='mange_orders.html'" style="background:rgba(255,255,255,0.08)">🏭 Mange App</button>
+    </div>
+  </div>
+</header>
+<nav>
+  <button id="navOrders" class="active">1. Orders list</button>
+  <button id="navAdd">2. Add order</button>
+  <button id="navDetail" style="display:none">3. Order details</button>
+</nav>
+<main>
+  <section id="ordersPage" class="page active">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><h2 style="margin-bottom:4px">Orders</h2><div class="note">Open an order to review roll usage and track workshop deliveries.</div></div>
+        <button id="createOrder">+ Add new order</button>
+      </div>
+      <div id="ordersList" style="margin-top:14px"></div>
+      <div class="actions no-print">
+        <button id="backupOrders" class="secondary">Backup all orders (JSON)</button>
+        <label class="secondary" style="display:inline-flex;align-items:center;padding:10px 14px;border-radius:9px;cursor:pointer;color:#21449a;background:#eaf0ff;font-weight:650">
+          Restore backup<input id="restoreFile" type="file" accept="application/json,.json" style="display:none">
+        </label>
+      </div>
+      <p class="note">Orders are saved in the database and shared across all devices.</p>
+    </div>
+  </section>
+
+  <section id="addPage" class="page">
+    <div class="card">
+      <h2 id="formTitle">Add new order</h2>
+      <div class="grid">
+        <div class="field"><label>Order number</label><input id="orderNo" placeholder="Enter order number"></div>
+        <div class="field"><label>Customer name</label><input id="customer" placeholder="Enter customer name"></div>
+        <div class="field"><label>Roll length (meters)</label><input id="rollLength" type="number" min=".01" step="any" value="90"></div>
+      </div>
+      <p class="note">Waste is 6 cm per zipper. No sample quantities are prefilled. Add only sizes and quantities for this order. Roll length is editable.</p>
+    </div>
+    <div class="card">
+      <h2>Original order quantities</h2>
+      <div class="tablewrap">
+        <table><thead><tr><th>Roll variation</th><th>Size (cm)</th><th>Quantity</th><th>Material / piece</th><th>Total material</th><th></th></tr></thead>
+        <tbody id="entryRows"></tbody></table>
+      </div>
+      <div class="actions">
+        <button id="addSizeRow" class="secondary">+ Add size / variation</button>
+        <button id="addNewVariation" class="secondary">+ Add new variation</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Automatic roll plan</h2>
+      <p class="note">All zipper sizes share the same roll supply. The tracker totals material for the full order, calculates rolls required, then pools the leftover for sequential finishing runs.</p>
+      <div class="stats">
+        <div class="stat"><span>Original pieces</span><strong id="entryPieces">0</strong></div>
+        <div class="stat"><span>Total material</span><strong id="entryMaterial">0 m</strong></div>
+        <div class="stat"><span>Estimated rolls</span><strong id="entryRolls">0</strong></div>
+        <div class="stat"><span>Waste / piece</span><strong>6 cm</strong></div>
+      </div>
+      <div id="autoRollPlan"></div>
+    </div>
+    <div class="card">
+      <h2>Finishing production</h2>
+      <p class="note">Add multiple finishing variations and sizes to the same leftover roll. They use the same roll leftover sequentially; each piece uses its size + 6 cm.</p>
+      <div id="finishingEditor"></div>
+      <div class="actions">
+        <button id="saveOrder">Save order</button>
+        <button id="cancelEdit" class="secondary">Cancel</button>
+      </div>
+      <div id="formMessage" class="note" role="status"></div>
+    </div>
+  </section>
+
+  <section id="detailPage" class="page">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div><h2 id="detailTitle">Order details</h2><div id="detailMeta" class="muted"></div></div>
+        <div class="actions no-print" style="margin-top:0">
+          <button id="editOrder" class="secondary">Edit order</button>
+          <button id="exportOrder" class="secondary">Export CSV</button>
+          <button id="printOrder" class="secondary">Print</button>
+        </div>
+      </div>
+      <div class="stats" id="detailStats"></div>
+    </div>
+    <div class="card"><h2>Original order &amp; material</h2>
+      <div class="tablewrap"><table><thead><tr><th>Variation</th><th>Size</th><th>Qty ordered</th><th>Material / piece</th><th>Total material</th></tr></thead>
+      <tbody id="detailOriginal"></tbody></table></div>
+    </div>
+    <div class="card"><h2>Roll-by-roll leftovers &amp; finishing</h2><div id="detailRolls"></div></div>
+    <div class="card">
+      <h2>Workshop receiving</h2>
+      <p class="note">Enter pieces actually received. Partial deliveries can be updated later. Missing quantities are calculated automatically.</p>
+      <div class="tablewrap"><table><thead><tr><th>Variation</th><th>Size</th><th>Original qty</th><th>Finishing qty</th><th>Total required</th><th>Received</th><th>Missing</th></tr></thead>
+      <tbody id="receivingRows"></tbody></table></div>
+      <div class="actions no-print"><button id="saveReceiving">Save receiving updates</button></div>
+      <div id="receiveMessage" class="note"></div>
+    </div>
+    <div class="actions no-print"><button id="backOrders" class="secondary">← Back to orders</button></div>
+  </section>
+</main>
+
+<script>
+// ─── Constants & state ────────────────────────────────────────────────────
+const BASE = ["Black tape + silver teeth","White tape + silver teeth","Black tape + Fami teeth","White tape + Fami teeth","Black tape + black teeth","White tape + black teeth","Black tape + silver matt teeth"];
+let custom = [], rows = [], finishing = {}, saved = {}, activeKey = null, editKey = null, rolls = [];
+
+const $ = id => document.getElementById(id);
+const n = x => Math.max(0, Number(x) || 0);
+const fmt = (x, d = 2) => (Number(x) || 0).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":'&#39;'}[c]));
+const variations = () => [...new Set([...BASE, ...custom, ...rows.map(r => r.variation), ...Object.values(saved).flatMap(o => [...(o.rows || []).map(r => r.variation), ...(o.rolls || []).map(r => r.finishVariation || r.variation)])])];
+function opts(v) { return variations().map(x => `<option value="${esc(x)}" ${x === v ? "selected" : ""}>${esc(x)}</option>`).join(""); }
+
+// ─── Auth helpers ──────────────────────────────────────────────────────────
+async function checkAuth() {
+  try {
+    const r = await fetch('/api/me');
+    const d = await r.json();
+    if (!d.loggedIn) { window.location.href = 'login.html'; return false; }
+    $('headerUsername').textContent = '👤 ' + d.username;
+    return true;
+  } catch(e) { window.location.href = 'login.html'; return false; }
+}
+
+async function doLogout() {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = 'login.html';
+}
+
+// ─── Saving indicator ──────────────────────────────────────────────────────
+let saveTimer = null;
+function showSaving(msg = '💾 Saving…') {
+  const el = $('savingIndicator'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(saveTimer); saveTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ─── API helpers ───────────────────────────────────────────────────────────
+async function apiGet(url) {
+  const r = await fetch(url);
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+async function apiPost(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+async function apiDelete(url) {
+  const r = await fetch(url, { method: 'DELETE' });
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+async function apiPut(url, body) {
+  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.status === 401) { window.location.href = 'login.html'; throw new Error('Unauthorized'); }
+  return r.json();
+}
+
+// ─── Load all data ─────────────────────────────────────────────────────────
+async function loadData() {
+  saved = await apiGet('/api/zipper/orders');
+}
+
+// ─── Navigation ────────────────────────────────────────────────────────────
+function go(id) {
+  ["ordersPage","addPage","detailPage"].forEach(x => $(x).classList.toggle("active", x === id));
+  $("navOrders").classList.toggle("active", id === "ordersPage");
+  $("navAdd").classList.toggle("active", id === "addPage");
+  $("navDetail").style.display = id === "detailPage" ? "inline-block" : "none";
+  $("navDetail").classList.toggle("active", id === "detailPage");
+  scrollTo(0, 0);
+}
+
+// ─── Roll calculation ──────────────────────────────────────────────────────
+function mat(r) { return (n(r.size) + 6) * n(r.qty) / 100; }
+
+function makeRolls() {
+  let rollMeters = n($("rollLength").value) || 90;
+  if (!rollMeters) return [];
+  let groups = {};
+  rows.forEach(r => { let variation = (r.variation || BASE[0]).trim(); if (!variation) return; groups[variation] ??= { variation, material: 0, pieces: 0 }; groups[variation].material += mat(r); groups[variation].pieces += Math.floor(n(r.qty)); });
+  return Object.values(groups).filter(g => g.material > 0).map(g => {
+    let rollCount = Math.ceil(g.material / rollMeters), leftover = Math.max(0, rollCount * rollMeters - g.material);
+    let id = "pooled-leftover-" + encodeURIComponent(g.variation), old = finishing[id] || {};
+    let items = Array.isArray(old.items) ? old.items : [];
+    let remainingCm = leftover * 100;
+    items = items.map(it => { let z = n(it.size), qty = z ? Math.floor(remainingCm / (z + 6)) : 0; remainingCm = Math.max(0, remainingCm - qty * (z + 6)); return { ...it, qty, left: remainingCm / 100 }; });
+    let r = { id, sourceId: id, variation: g.variation, size: 0, qty: g.pieces, rollIndex: "All", rollLength: rollMeters, remaining: leftover, finishItems: items, rollCount, material: g.material };
+    r.finishQty = items.reduce((a, it) => a + n(it.qty), 0); r.finishLeft = remainingCm / 100;
+    finishing[id] = { items: items.map(it => ({ variation: it.variation || g.variation, size: it.size ?? "" })) };
+    return r;
+  });
+}
+
+// ─── Entry form rendering ──────────────────────────────────────────────────
+function renderEntry() {
+  const tbody = $("entryRows");
+  tbody.innerHTML = rows.map(r => `<tr><td><select data-row="${r.id}" data-key="variation">${opts(r.variation)}</select></td>
+  <td><input type="text" inputmode="decimal" placeholder="cm" data-row="${r.id}" data-key="size" value="${esc(r.size)}"></td>
+  <td><input type="text" inputmode="numeric" placeholder="pieces" data-row="${r.id}" data-key="qty" value="${esc(r.qty)}"></td>
+  <td>${r.size ? fmt(n(r.size) + 6, 1) + " cm" : "—"}</td><td>${fmt(mat(r))} m</td>
+  <td><button class="danger small" data-remove="${r.id}">Remove</button></td></tr>`).join("") ||
+  `<tr><td colspan="6" class="empty">No sizes yet. Click "Add size / variation" to begin.</td></tr>`;
+
+  rolls = makeRolls();
+  $("entryPieces").textContent = rows.reduce((s, r) => s + Math.floor(n(r.qty)), 0).toLocaleString();
+  $("entryMaterial").textContent = fmt(rows.reduce((s, r) => s + mat(r), 0)) + " m";
+  $("entryRolls").textContent = rolls.reduce((sum, r) => sum + r.rollCount, 0);
+
+  $("autoRollPlan").innerHTML = rolls.map(r => `<div class="rollcard"><div class="rollhead"><div><strong>${esc(r.variation)}</strong>
+  <div class="muted">${r.rollCount} rolls × ${fmt(r.rollLength)} m · ${fmt(r.material)} m required</div></div>
+  <span class="tag">${fmt(r.remaining)} m leftover</span></div>
+  <div class="muted">Only material from this variation is pooled together.</div></div>`).join("") ||
+  `<div class="empty">Enter a size and quantity to calculate rolls and leftovers.</div>`;
+
+  $("finishingEditor").innerHTML = rolls.map(r => {
+    let items = finishing[r.id]?.items || [];
+    let remainingCm = r.remaining * 100;
+    let lines = items.map((it, i) => {
+      let z = n(it.size), qty = z ? Math.floor(remainingCm / (z + 6)) : 0; remainingCm = Math.max(0, remainingCm - qty * (z + 6));
+      return `<div class="rollgrid"><div class="field"><label>Finishing variation</label><select data-finish-variation="${r.id}" data-index="${i}">${opts(it.variation || r.variation)}</select></div>
+      <div class="field"><label>Finishing size (cm)</label><input type="text" inputmode="decimal" placeholder="e.g. 60" data-finish="${r.id}" data-index="${i}" value="${esc(it.size)}"></div>
+      <div><div class="muted">Extra pieces</div><strong>${qty.toLocaleString()}</strong></div>
+      <div><div class="muted">Left after this variation</div><strong>${fmt(remainingCm / 100)} m</strong></div>
+      <div><button type="button" class="danger small" data-remove-finish="${r.id}" data-index="${i}">Remove</button></div></div>`;
+    }).join("");
+    return `<div class="rollcard"><div class="rollhead"><div><strong>${esc(r.variation)}</strong>
+    <div class="muted">This variation only · ${r.rollCount} rolls · pooled leftover ${fmt(r.remaining)} m</div></div>
+    <span class="tag">${r.finishQty} extra pieces total</span></div>${lines}
+    <div class="actions"><button type="button" class="secondary small" data-add-finish="${r.id}">+ Add finishing variation / size</button></div>
+    <div class="muted">Left after all finishing: ${fmt(r.finishLeft)} m</div></div>`;
+  }).join("") || `<div class="empty">Finishing choices appear after you add order quantities.</div>`;
+}
+
+// ─── Order helpers ─────────────────────────────────────────────────────────
+function k(v, s) { return v + "|||" + n(s); }
+
+function totals(o) {
+  let m = {};
+  (o.rows || []).forEach(r => { if (!n(r.size)) return; let key = k(r.variation, r.size); m[key] ??= { variation: r.variation, size: n(r.size), orig: 0, fin: 0 }; m[key].orig += n(r.qty); });
+  (o.rolls || []).forEach(r => {
+    let items = Array.isArray(r.finishItems) ? r.finishItems : (r.finishSize ? [{ variation: r.finishVariation || r.variation, size: r.finishSize, qty: r.finishQty }] : []);
+    items.forEach(it => { if (n(it.size) && n(it.qty)) { let fv = it.variation || r.variation, key = k(fv, it.size); m[key] ??= { variation: fv, size: n(it.size), orig: 0, fin: 0 }; m[key].fin += n(it.qty); } });
+  });
+  return Object.values(m).sort((a, b) => a.variation.localeCompare(b.variation) || a.size - b.size);
+}
+
+function snapshot() {
+  rolls = makeRolls();
+  return { orderNo: $("orderNo").value.trim(), customer: $("customer").value.trim(), rollLength: n($("rollLength").value) || 90, rows: rows.map(r => ({ ...r, size: n(r.size), qty: Math.floor(n(r.qty)) })), rolls: rolls.map(r => ({ ...r })), receiving: activeKey ? saved[activeKey]?.receiving || {} : {}, updated: new Date().toISOString() };
+}
+
+// ─── Persist ───────────────────────────────────────────────────────────────
+async function persistOrder(id, order) {
+  showSaving();
+  try { await apiPost('/api/zipper/orders', { id, order }); }
+  catch(e) { console.error('Save error', e); showSaving('⚠️ Save failed'); }
+}
+
+// ─── Render orders list ─────────────────────────────────────────────────────
+function renderOrders() {
+  let list = Object.entries(saved).sort((a, b) => (b[1].updated || "").localeCompare(a[1].updated || ""));
+  $("ordersList").innerHTML = list.length ? list.map(([id, o]) =>
+    `<div class="ordercard"><div><h3>${esc(o.orderNo || "(No order number)")}</h3><div>${esc(o.customer || "No customer name")}</div>
+    <div class="muted">${(o.rows || []).reduce((s, r) => s + n(r.qty), 0).toLocaleString()} original pieces · ${esc(o.rollLength)} m rolls</div></div>
+    <div class="actions" style="margin:0">
+      <button data-open="${esc(id)}">Open &amp; track</button>
+      <button class="secondary" data-edit="${esc(id)}">Edit</button>
+      <button class="danger" data-delete="${esc(id)}">Delete</button>
+    </div></div>`).join("") : `<div class="empty">No orders yet. Click "Add new order" to create one.</div>`;
+}
+
+// ─── Start new / edit ──────────────────────────────────────────────────────
+function startNew() {
+  activeKey = null; editKey = null; rows = []; finishing = {};
+  $("orderNo").value = ""; $("customer").value = ""; $("rollLength").value = 90;
+  $("formTitle").textContent = "Add new order"; $("formMessage").textContent = "";
+  renderEntry(); go("addPage");
+}
+
+function startEdit(id) {
+  let o = saved[id]; if (!o) return;
+  activeKey = id; editKey = id;
+  rows = (o.rows || []).map(r => ({ ...r, id: r.id || String(Math.random()) }));
+  finishing = {};
+  (o.rolls || []).forEach(r => {
+    if (Array.isArray(r.finishItems)) finishing[r.id] = { items: r.finishItems.map(it => ({ variation: it.variation || r.variation, size: it.size ?? "" })) };
+    else if (r.finishSize) finishing[r.id] = { items: [{ variation: r.finishVariation || r.variation, size: r.finishSize }] };
+  });
+  $("orderNo").value = o.orderNo || ""; $("customer").value = o.customer || ""; $("rollLength").value = o.rollLength || 90;
+  $("formTitle").textContent = "Edit order " + o.orderNo;
+  $("formMessage").textContent = "Existing receiving records will be preserved.";
+  renderEntry(); go("addPage");
+}
+
+function openDetail(id) { activeKey = id; renderDetail(); go("detailPage"); }
+
+// ─── Render detail ─────────────────────────────────────────────────────────
+function renderDetail() {
+  let o = saved[activeKey]; if (!o) return;
+  $("detailTitle").textContent = "Order " + (o.orderNo || "");
+  $("detailMeta").textContent = `Customer: ${o.customer || "—"} · Roll length ${fmt(o.rollLength)} m · Updated ${new Date(o.updated || Date.now()).toLocaleString()}`;
+  let pieces = (o.rows || []).reduce((s, r) => s + n(r.qty), 0), material = (o.rows || []).reduce((s, r) => s + (n(r.size) + 6) * n(r.qty) / 100, 0), extra = (o.rolls || []).reduce((s, r) => s + (Array.isArray(r.finishItems) ? r.finishItems.reduce((a, it) => a + n(it.qty), 0) : n(r.finishQty)), 0);
+  $("detailStats").innerHTML = `<div class="stat"><span>Original pieces</span><strong>${pieces.toLocaleString()}</strong></div>
+  <div class="stat"><span>Finishing pieces</span><strong>${extra.toLocaleString()}</strong></div>
+  <div class="stat"><span>Total material</span><strong>${fmt(material)} m</strong></div>
+  <div class="stat"><span>Rolls planned</span><strong>${(o.rolls || []).reduce((sum, r) => sum + (r.rollCount || 0), 0) || Math.ceil(material / (o.rollLength || 90))}</strong></div>`;
+
+  $("detailOriginal").innerHTML = (o.rows || []).map(r => `<tr><td>${esc(r.variation)}</td><td>${fmt(r.size, 1)} cm</td><td>${n(r.qty).toLocaleString()}</td><td>${fmt(n(r.size) + 6, 1)} cm</td><td>${fmt((n(r.size) + 6) * n(r.qty) / 100)} m</td></tr>`).join("") || `<tr><td colspan="5">No original rows.</td></tr>`;
+
+  $("detailRolls").innerHTML = (o.rolls || []).map(r => `<div class="rollcard"><div class="rollhead"><div><strong>${esc(r.variation)}</strong>
+  <div class="muted">This variation only · ${r.rollCount || Math.ceil((o.rows || []).filter(x => x.variation === r.variation).reduce((sum, x) => sum + (n(x.size) + 6) * n(x.qty) / 100, 0) / (o.rollLength || 90))} rolls · pooled leftover</div></div>
+  <span class="tag">${fmt(r.remaining)} m leftover</span></div>
+  <div>${(r.finishItems || (r.finishSize ? [{ variation: r.finishVariation || r.variation, size: r.finishSize, qty: r.finishQty }] : [])).length ?
+    (r.finishItems || [{ variation: r.finishVariation || r.variation, size: r.finishSize, qty: r.finishQty }]).map(it => `Finishing variation <strong>${esc(it.variation || r.variation)}</strong> · size <strong>${fmt(it.size, 1)} cm</strong> · pieces <strong>${n(it.qty)}</strong>`).join("<br>") + `<br>Left after finishing <strong>${fmt(r.finishLeft)} m</strong>` :
+    "No finishing size selected."}</div></div>`).join("") || `<div class="empty">No roll plan saved.</div>`;
+
+  let rows2 = totals(o);
+  $("receivingRows").innerHTML = rows2.map(r => {
+    let key = k(r.variation, r.size), got = n((o.receiving || {})[key]), required = r.orig + r.fin, missing = required - got;
+    return `<tr><td>${esc(r.variation)}</td><td>${fmt(r.size, 1)} cm</td><td>${r.orig.toLocaleString()}</td><td>${r.fin.toLocaleString()}</td>
+    <td><strong>${required.toLocaleString()}</strong></td>
+    <td><input type="number" min="0" step="1" data-required="${required}" data-received="${esc(key)}" value="${got}"></td>
+    <td data-missing-cell class="${missing < 0 ? "over-received" : ""}" style="font-weight:700;color:${missing !== 0 ? "#b42318" : "#167447"}">${missing > 0 ? missing.toLocaleString() : missing < 0 ? missing.toLocaleString() : "0"}</td></tr>`;
+  }).join("") || `<tr><td colspan="7">No quantities to receive.</td></tr>`;
+}
+
+// ─── Save order ─────────────────────────────────────────────────────────────
+async function saveOrder() {
+  let o = snapshot();
+  if (!o.orderNo) { $("formMessage").textContent = "Please enter an order number."; return; }
+  if (!o.rows.some(r => n(r.size) > 0 && n(r.qty) > 0)) { $("formMessage").textContent = "Add at least one zipper size and quantity."; return; }
+  let id = editKey || o.orderNo;
+  if (!editKey && saved[id] && !confirm("That order number exists. Replace it?")) return;
+  if (editKey && saved[editKey]) o.receiving = saved[editKey].receiving || {};
+  saved[id] = o; activeKey = id; editKey = id;
+  await persistOrder(id, o);
+  renderOrders(); renderDetail(); go("detailPage");
+}
+
+// ─── Save receiving ─────────────────────────────────────────────────────────
+async function saveReceiving() {
+  let o = saved[activeKey]; if (!o) return;
+  o.receiving = o.receiving || {};
+  document.querySelectorAll("[data-received]").forEach(i => o.receiving[i.dataset.received] = Math.floor(n(i.value)));
+  o.updated = new Date().toISOString();
+  showSaving();
+  try {
+    await apiPut('/api/zipper/orders/' + encodeURIComponent(activeKey) + '/receiving', { receiving: o.receiving });
+    saved[activeKey] = o;
+    renderDetail(); renderOrders();
+    $("receiveMessage").textContent = "Receiving updates saved.";
+  } catch(e) { $("receiveMessage").textContent = "Save failed. Please try again."; }
+}
+
+// ─── Export CSV ─────────────────────────────────────────────────────────────
+function exportCsv(id) {
+  let o = saved[id]; if (!o) return;
+  let data = [["Section","Order","Customer","Roll length m","Variation","Size cm","Quantity","Material/leftover m","Received","Missing"]];
+  (o.rows || []).forEach(r => data.push(["Original", o.orderNo, o.customer, o.rollLength, r.variation, r.size, r.qty, (n(r.size) + 6) * n(r.qty) / 100, "", ""]));
+  (o.rolls || []).forEach(r => data.push(["Finishing", o.orderNo, o.customer, o.rollLength, r.variation, r.finishSize || r.size, r.finishQty || r.qty, r.finishLeft ?? r.remaining, "", ""]));
+  totals(o).forEach(r => { let got = n((o.receiving || {})[k(r.variation, r.size)]); data.push(["Receiving", o.orderNo, o.customer, o.rollLength, r.variation, r.size, r.orig + r.fin, "", got, r.orig + r.fin - got]); });
+  let blob = new Blob([data.map(row => row.map(x => '"' + String(x ?? "").replace(/"/g, '""') + '"').join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" }), url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = `zipper-order-${o.orderNo || "export"}.csv`; a.click(); URL.revokeObjectURL(url);
+}
+
+// ─── Event wiring ───────────────────────────────────────────────────────────
+$("navOrders").onclick = () => { renderOrders(); go("ordersPage"); };
+$("navAdd").onclick = startNew;
+$("createOrder").onclick = startNew;
+$("addSizeRow").onclick = () => newRow();
+$("addNewVariation").onclick = () => { let x = prompt("Enter new roll variation:"); if (x && x.trim()) { custom.push(x.trim()); newRow({ variation: x.trim() }); } };
+$("saveOrder").onclick = saveOrder;
+$("cancelEdit").onclick = () => { renderOrders(); go("ordersPage"); };
+$("backOrders").onclick = () => { renderOrders(); go("ordersPage"); };
+$("saveReceiving").onclick = saveReceiving;
+$("editOrder").onclick = () => startEdit(activeKey);
+$("exportOrder").onclick = () => exportCsv(activeKey);
+$("printOrder").onclick = () => print();
+
+$("backupOrders").onclick = () => {
+  const blob = new Blob([JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), orders: saved }, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = "zipper-orders-backup.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+$("restoreFile").onchange = async e => {
+  const file = e.target.files?.[0]; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text()), incoming = data.orders || data;
+    if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) throw Error("Invalid backup");
+    if (!confirm("Restore backup? Orders with matching IDs will be replaced. Export a backup first if needed.")) return;
+    const result = await apiPost('/api/zipper/import', incoming);
+    if (result.ok) {
+      await loadData(); renderOrders(); showSaving('✅ Backup restored!');
+      alert("Backup restored successfully.");
+    }
+  } catch(err) { alert("Could not restore this backup. Please choose a valid zipper tracker JSON backup."); }
+  finally { e.target.value = ""; }
+};
+
+function newRow(d = {}) {
+  rows.push({ id: (crypto.randomUUID?.() || String(Date.now() + Math.random())), variation: d.variation || BASE[0], size: d.size ?? "", qty: d.qty ?? "" }); renderEntry();
+}
+
+function rerenderKeepingFocus(target) {
+  const selector = target.dataset.row ? `[data-row="${CSS.escape(target.dataset.row)}"][data-key="${CSS.escape(target.dataset.key)}"]` : target.dataset.finish ? `[data-finish="${CSS.escape(target.dataset.finish)}"][data-index="${target.dataset.index}"]` : target.dataset.finishVariation ? `[data-finish-variation="${CSS.escape(target.dataset.finishVariation)}"][data-index="${target.dataset.index}"]` : null;
+  let start = null, end = null;
+  try { start = target.selectionStart; end = target.selectionEnd; } catch {}
+  renderEntry();
+  if (selector) { const replacement = document.querySelector(selector); if (replacement) { replacement.focus(); try { if (start !== null) replacement.setSelectionRange(start, end); } catch {} } }
+}
+
+document.addEventListener("input", e => {
+  let t = e.target;
+  if (t.dataset.row) { let r = rows.find(x => x.id === t.dataset.row); if (r) { r[t.dataset.key] = t.dataset.key === "variation" ? t.value : (t.value === "" ? "" : n(t.value)); rerenderKeepingFocus(t); } }
+  if (t.dataset.finish) { let f = finishing[t.dataset.finish] || (finishing[t.dataset.finish] = { items: [] }), i = Number(t.dataset.index); f.items = f.items || []; f.items[i] = f.items[i] || { variation: rows[0]?.variation || BASE[0], size: "" }; f.items[i].size = t.value === "" ? "" : n(t.value); rerenderKeepingFocus(t); }
+  if (!t.matches("[data-received]")) return;
+  const missing = Number(t.dataset.required || 0) - (Number(t.value) || 0), cell = t.closest("tr")?.querySelector("[data-missing-cell]");
+  if (cell) { cell.textContent = String(missing); cell.classList.toggle("over-received", missing < 0); cell.style.color = missing !== 0 ? "#b42318" : "#167447"; }
+});
+
+document.addEventListener("change", e => {
+  let t = e.target;
+  if (t.dataset.row) { let r = rows.find(x => x.id === t.dataset.row); if (r) { r[t.dataset.key] = t.value; rerenderKeepingFocus(t); } }
+  if (t.dataset.finishVariation) { let f = finishing[t.dataset.finishVariation] || (finishing[t.dataset.finishVariation] = { items: [] }), i = Number(t.dataset.index); f.items = f.items || []; f.items[i] = f.items[i] || { variation: rows[0]?.variation || BASE[0], size: "" }; f.items[i].variation = t.value; rerenderKeepingFocus(t); }
+});
+
+document.addEventListener("click", async e => {
+  let b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.remove) { rows = rows.filter(r => r.id !== b.dataset.remove); renderEntry(); }
+  if (b.dataset.addFinish) { let f = finishing[b.dataset.addFinish] || (finishing[b.dataset.addFinish] = { items: [] }); f.items = f.items || []; f.items.push({ variation: rows[0]?.variation || BASE[0], size: "" }); renderEntry(); }
+  if (b.dataset.removeFinish) { let f = finishing[b.dataset.removeFinish]; if (f?.items) f.items.splice(Number(b.dataset.index), 1); renderEntry(); }
+  if (b.dataset.open) openDetail(b.dataset.open);
+  if (b.dataset.edit) startEdit(b.dataset.edit);
+  if (b.dataset.delete && confirm("Delete this order permanently?")) {
+    const id = b.dataset.delete;
+    delete saved[id];
+    await apiDelete('/api/zipper/orders/' + encodeURIComponent(id));
+    renderOrders();
+    if (activeKey === id) go("ordersPage");
+  }
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────
+(async () => {
+  const ok = await checkAuth();
+  if (!ok) return;
+  await loadData();
+  renderOrders(); startNew();
+})();
+</script>
+</body>
+</html>
